@@ -10,6 +10,12 @@ const io = new Server(server, {
   },
 });
 
+app.get("/", (req, res) => {
+  res.json({
+    message: "Berhasil masuk",
+  });
+});
+
 io.on("connection", (socket) => {
   console.log("Flutter connected: " + socket.id);
 });
