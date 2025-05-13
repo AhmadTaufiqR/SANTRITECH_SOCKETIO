@@ -1,34 +1,55 @@
 const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
+const admin = require("firebase-admin");
+const path = require("path");
 
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-  },
+const PORT = 3000;
+
+app.use(express.json());
+
+// Inisialisasi Firebase Admin SDK
+const serviceAccount = require(path.join(
+  __dirname,
+  "santritech-app-firebase-adminsdk-fbsvc-f74f59b8b5.json"
+));
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
 });
 
-app.get("/", (req, res) => {
-  res.json({
-    message: "Berhasil masuk",
-  });
+// Fungsi kirim FCM
+const sendFcmMessage = async ({ token, title, body }) => {
+  const message = {
+    token,
+    data: {
+      title,
+      body,
+    },
+    android: {
+      priority: "high",
+    },
+  };
+
+  return admin.messaging().send(message);
+};
+
+// Endpoint Express
+app.post("/fcm", async (req, res) => {
+  const { token, title, body } = req.body;
+
+  if (!token || !title || !body) {
+    return res.status(400).json({ error: "Missing token, title, or body" });
+  }
+
+  try {
+    const response = await sendFcmMessage({ token, title, body });
+    res.json({ success: true, messageId: response });
+  } catch (error) {
+    console.error("Error sending FCM:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
-io.on("connection", (socket) => {
-  console.log("Flutter connected: " + socket.id);
-});
-
-app.post("/trigger", express.json(), (req, res) => {
-  const { title, message } = req.body;
-
-  // Broadcast ke semua client Flutter
-  io.emit("notification", { title, message });
-
-  res.send({ success: true });
-});
-
-server.listen(3000, () => {
-  console.log("Socket.IO server running on port 3000");
+app.listen(PORT, () => {
+  console.log(`FCM server running on http://localhost:${PORT}`);
 });
